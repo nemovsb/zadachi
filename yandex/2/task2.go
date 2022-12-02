@@ -18,6 +18,8 @@ type logEvent struct {
 	event  rune
 }
 
+type RocketsLog map[int][]logEvent
+
 type TravelTime struct {
 	id   int
 	time int
@@ -27,7 +29,6 @@ type TravelTime struct {
 // B = 66
 // C = 67
 // S = 83
-
 var patterns = [][]rune{
 	{65, 66, 67},
 	{65, 66, 83},
@@ -51,8 +52,7 @@ func main() {
 		log.Fatal("Error: ", err)
 	}
 
-	FullLog := make([]logEvent, 0)
-	ids := make([]int, 0)
+	rocketsLog := make(RocketsLog, 0)
 
 	for i := 1; i <= num; i++ {
 		fileScanner.Scan()
@@ -77,23 +77,8 @@ func main() {
 		if err != nil {
 			log.Fatal("Error: ", err)
 		}
-		{
-			ok := true
-			for _, g := range ids {
 
-				ok = !(id == g)
-
-				if !ok {
-					break
-				}
-
-			}
-			if ok {
-				ids = append(ids, id)
-			}
-		}
-
-		FullLog = append(FullLog, logEvent{
+		rocketsLog[id] = append(rocketsLog[id], logEvent{
 			day:    d,
 			hour:   h,
 			minute: m,
@@ -107,40 +92,57 @@ func main() {
 
 	timeResult := make(chan (TravelTime))
 
-	for _, id := range ids {
+	// Цикл по ракетам
+	for id, rocketLog := range rocketsLog {
 
-		go func(id int) {
+		//Для лога каждой ракеты свой обработчик
+		go func(id int, log []logEvent) {
 			var timeEvent int
 
-			log := getLogById(id, FullLog)
 			sortLogByTime(log)
 
-			//for i := 0; i < len(log); i++ {
+			//Перебор событий ракеты
 			for i := range log {
 
+				//Перебор возможных сценариев
 				for _, pattern := range patterns {
+
+					hit := false
+
+					//Перебор событий сценария
 					for j, event := range pattern {
+
+						//Если событие сценария не совпадает с текущим, то переход к следующему сценарию
 						if event != log[i+j].event {
 							break
 						}
+
+						//Если последнее событие сценария, считаем время и наращиваем счетчик записей лога ракеты (i+j)
 						if j == len(pattern)-1 {
+							hit = true
 							timeEvent += getMinute(log[i+j]) - getMinute(log[i])
 							i += j
 						}
 					}
+
+					//Если паттерн совпал, переходим к следующим записям лога
+					if hit {
+						break
+					}
 				}
 
 			}
+			//Отправляем результат
 			timeResult <- TravelTime{
 				id:   id,
 				time: timeEvent,
 			}
-		}(id)
+		}(id, rocketLog)
 	}
 
 	resultTravelTime := make([]TravelTime, 0)
 
-	for range ids {
+	for range rocketsLog {
 		resultTravelTime = append(resultTravelTime, <-timeResult)
 	}
 
