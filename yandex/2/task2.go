@@ -52,6 +52,7 @@ func main() {
 	}
 
 	FullLog := make([]logEvent, 0)
+	ids := make([]int, 0)
 
 	for i := 1; i <= num; i++ {
 		fileScanner.Scan()
@@ -76,6 +77,21 @@ func main() {
 		if err != nil {
 			log.Fatal("Error: ", err)
 		}
+		{
+			ok := true
+			for _, g := range ids {
+
+				ok = !(id == g)
+
+				if !ok {
+					break
+				}
+
+			}
+			if ok {
+				ids = append(ids, id)
+			}
+		}
 
 		FullLog = append(FullLog, logEvent{
 			day:    d,
@@ -88,25 +104,6 @@ func main() {
 	}
 
 	var result string
-
-	ids := make([]int, 0)
-	for _, v := range FullLog {
-
-		ok := true
-		for _, g := range ids {
-
-			ok = !(v.id == g)
-
-			if !ok {
-				break
-			}
-
-		}
-
-		if ok {
-			ids = append(ids, v.id)
-		}
-	}
 
 	timeResult := make(chan (TravelTime))
 
