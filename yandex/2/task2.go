@@ -18,14 +18,21 @@ type logEvent struct {
 	event  rune
 }
 
+type TravelTime struct {
+	id   int
+	time int
+}
+
 // A = 65
 // B = 66
 // C = 67
 // S = 83
 
-var event1 = [3]rune{65, 66, 67}
-var event2 = [3]rune{65, 66, 83}
-var event3 = [2]rune{65, 67}
+var patterns = [][]rune{
+	{65, 66, 67},
+	{65, 66, 83},
+	{65, 67},
+}
 
 func main() {
 	file, err := os.Open("input.txt")
@@ -44,7 +51,7 @@ func main() {
 		log.Fatal("Error: ", err)
 	}
 
-	eLog := make([]logEvent, 0)
+	FullLog := make([]logEvent, 0)
 
 	for i := 1; i <= num; i++ {
 		fileScanner.Scan()
@@ -70,7 +77,7 @@ func main() {
 			log.Fatal("Error: ", err)
 		}
 
-		eLog = append(eLog, logEvent{
+		FullLog = append(FullLog, logEvent{
 			day:    d,
 			hour:   h,
 			minute: m,
@@ -80,12 +87,10 @@ func main() {
 
 	}
 
-	sort.Slice(eLog, func(i, j int) bool {
-		return eLog[i].id < eLog[j].id
-	})
+	var result string
 
 	ids := make([]int, 0)
-	for _, v := range eLog {
+	for _, v := range FullLog {
 
 		ok := true
 		for _, g := range ids {
@@ -101,41 +106,54 @@ func main() {
 		if ok {
 			ids = append(ids, v.id)
 		}
-
 	}
 
-	var result string
+	timeResult := make(chan (TravelTime))
 
 	for _, id := range ids {
-		var timeRes int
-		log := getLogById(id, eLog)
 
-		sortLogByTime(log)
+		go func(id int) {
+			var timeEvent int
 
-		eventNum := 0
-		var time int
+			log := getLogById(id, FullLog)
+			sortLogByTime(log)
 
-		for i, event := range log {
-			res, done := checkEvent(event, eventNum)
-			if res {
-				if eventNum != 0 {
-					time += getMinute(event) - getMinute(log[i-1])
+			//for i := 0; i < len(log); i++ {
+			for i := range log {
+
+				for _, pattern := range patterns {
+					for j, event := range pattern {
+						if event != log[i+j].event {
+							break
+						}
+						if j == len(pattern)-1 {
+							timeEvent += getMinute(log[i+j]) - getMinute(log[i])
+							i += j
+						}
+					}
 				}
-				if done {
-					timeRes += time
-					eventNum = 0
-				}
-				eventNum++
-			} else {
-				eventNum = 0
-				res, _ := checkEvent(event, eventNum)
-				if res {
-					eventNum++
-					time = 0
-				}
+
 			}
-		}
-		result = fmt.Sprint(result, " ", strconv.Itoa(timeRes))
+			timeResult <- TravelTime{
+				id:   id,
+				time: timeEvent,
+			}
+		}(id)
+	}
+
+	resultTravelTime := make([]TravelTime, 0)
+
+	for range ids {
+		resultTravelTime = append(resultTravelTime, <-timeResult)
+	}
+
+	sort.Slice(resultTravelTime, func(i, j int) bool {
+		return resultTravelTime[i].id < resultTravelTime[j].id
+	})
+
+	for _, res := range resultTravelTime {
+
+		result = fmt.Sprint(result, " ", strconv.Itoa(res.time))
 	}
 
 	output, err := os.OpenFile(`output.txt`, os.O_WRONLY, 0666)
@@ -149,40 +167,15 @@ func main() {
 		log.Fatal("Error: ", err)
 	}
 
-	output.WriteString(result)
-
-}
-
-func checkEvent(e logEvent, i int) (res, done bool) {
-
-	if i < len(event3) {
-		if (i >= len(event1)) && (i >= len(event2)) {
-			done = true
-		}
-
-		res = e.event == event1[i] || e.event == event2[i] || e.event == event3[i]
-
-		if (e.event == event3[i]) && (len(event3)-1 == i) {
-			done = true
-		}
-
-		return res, done
-
-	} else {
-		if i >= len(event3) {
-			done = true
-		}
-		res = e.event == event1[i] || e.event == event2[i]
-		return res, done
-	}
+	output.WriteString(strings.Trim(result, " "))
 
 }
 
 func getLogById(id int, l []logEvent) []logEvent {
 	res := make([]logEvent, 0)
-	for _, v := range l {
-		if id == v.id {
-			res = append(res, v)
+	for i := 0; i < len(l); i++ {
+		if id == l[i].id {
+			res = append(res, l[i])
 		}
 	}
 	return res
